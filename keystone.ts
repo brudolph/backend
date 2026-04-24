@@ -7,6 +7,7 @@ import { createGoogleSheetsRouter } from './routes/googleSheets'
 export default withAuth(
   config({
     server: {
+      port: parseInt(process.env.PORT || '3001'),
       cors: {
         origin: process.env.NODE_ENV === 'production' ? [process.env.FRONTEND_URL_PROD!] : true,
         credentials: true,

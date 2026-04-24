@@ -44,6 +44,22 @@ async function getSheetsApi() {
   return google.sheets({ version: 'v4', auth });
 }
 
+// Coerce a cell value to a trimmed string regardless of its type (numbers come
+// back as JS numbers when valueRenderOption is 'FORMULA').
+function cellStr(val: unknown): string {
+  if (val === undefined || val === null) return '';
+  return String(val).trim();
+}
+
+// --- URL extraction (handles =HYPERLINK("url","text") formulas) ---
+function extractUrl(cell: unknown): string {
+  const s = cellStr(cell);
+  if (!s) return '';
+  const match = s.match(/=HYPERLINK\("([^"]+)"/i);
+  if (match) return match[1];
+  return s;
+}
+
 // --- Price parsing ---
 function parsePrice(raw: string): { min: number; max: number } {
   if (!raw) return { min: 0, max: 0 };
@@ -72,6 +88,7 @@ export async function syncProductsFromSheet(context: any) {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range,
+      valueRenderOption: 'FORMULA',
     });
 
     const rows = response.data.values || [];
@@ -79,12 +96,12 @@ export async function syncProductsFromSheet(context: any) {
     // Skip header row (index 0)
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      const name = row[COL.NAME]?.trim();
+      const name = cellStr(row[COL.NAME]);
       if (!name) continue;
 
-      const potencyVal = row[COL.POTENCY]?.trim();
-      const priceVal = row[COL.PRICE]?.trim();
-      const strainVal = row[COL.STRAIN]?.trim();
+      const potencyVal = cellStr(row[COL.POTENCY]);
+      const priceVal = cellStr(row[COL.PRICE]);
+      const strainVal = cellStr(row[COL.STRAIN]);
 
       // Validate: Potency must contain a % (e.g., "22%"), Price must contain a $ amount,
       // and I/S/H must be one of Indica, Sativa, or Hybrid — otherwise it's a header/section row
@@ -98,16 +115,16 @@ export async function syncProductsFromSheet(context: any) {
       const inventory = isNaN(inventoryRaw) ? 0 : inventoryRaw;
 
       const data = {
-        potency: row[COL.POTENCY]?.trim() || '',
-        environment: row[COL.ENVIRONMENT]?.trim() || '',
+        potency: potencyVal,
+        environment: cellStr(row[COL.ENVIRONMENT]),
         priceMin: price.min,
         priceMax: price.max,
         inventory,
-        strain: row[COL.STRAIN]?.trim() || '',
+        strain: strainVal,
         category,
-        useByDate: row[COL.USE_BY_DATE]?.trim() || '',
-        imageUrl: row[COL.IMAGE_URL]?.trim() || '',
-        description: row[COL.NOTES]?.trim() || '',
+        useByDate: cellStr(row[COL.USE_BY_DATE]),
+        imageUrl: extractUrl(row[COL.IMAGE_URL]),
+        description: cellStr(row[COL.NOTES]),
         inStock: inventory > 0 ? 1 : 0,
       };
 
@@ -171,7 +188,7 @@ export async function updateInventoryInSheet(productName: string, category: stri
   });
 
   const names = response.data.values || [];
-  const rowIndex = names.findIndex(r => r[0]?.trim() === productName);
+  const rowIndex = names.findIndex(r => cellStr(r[0]) === productName);
   if (rowIndex === -1) return; // Product not found in sheet
 
   // Update the inventory cell (WEIGHT column)
@@ -205,10 +222,10 @@ export async function syncInventoryFromSheet(context: any) {
     const rows = response.data.values || [];
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      const name = row[COL.NAME]?.trim();
+      const name = cellStr(row[COL.NAME]);
       if (!name) continue;
 
-      const inventoryRaw = parseFloat(row[COL.WEIGHT] || '0');
+      const inventoryRaw = parseFloat(cellStr(row[COL.WEIGHT]) || '0');
       const inventory = isNaN(inventoryRaw) ? 0 : inventoryRaw;
 
       // Only update products that already exist in the DB
