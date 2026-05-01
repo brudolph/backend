@@ -17,8 +17,8 @@ export default withAuth(
       },
     },
     db: {
-      provider: 'sqlite',
-      url: 'file:./keystone.db',
+      provider: 'postgresql',
+      url: process.env.DATABASE_URL!,
     },
     lists,
     session,
