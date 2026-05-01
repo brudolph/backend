@@ -8,6 +8,13 @@ const SHEET_ID = '1WmXJV1Ns_86FJ2xT7z221xERNpb0tzUGX5kqTwuhEwA';
 const KEYFILE = path.join(__dirname, '..', 'level-totality-443704-s4-507e9e882d9b.json');
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 
+function getServiceAccountKeys() {
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    return JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  }
+  return JSON.parse(fs.readFileSync(KEYFILE, 'utf-8'));
+}
+
 // Column mapping (0-indexed). Adjust if the sheet layout changes.
 const COL = {
   NAME: 0,        // A - STRAIN
@@ -29,7 +36,7 @@ const INVENTORY_COL_LETTER = 'E';
 
 // --- Auth helpers ---
 function getAuthClient() {
-  const keys = JSON.parse(fs.readFileSync(KEYFILE, 'utf-8'));
+  const keys = getServiceAccountKeys();
   return new google.auth.JWT(
     keys.client_email,
     undefined,
